@@ -343,6 +343,7 @@ button.restart-btn { background: #ff3b5c; color: white; }
                 You are: <span id="myRoleText">PLAYER 1</span>
             </div>
             <div class="timer" id="timer">10</div>
+            <button class="action-btn restart-btn" style="padding:12px 20px;" onclick="leaveGame()">LEAVE</button>
         </div>
 
         <div class="instruction" id="instruction">
@@ -506,7 +507,10 @@ function copyRoomLink() {
 function setupConnection() {
     conn.on("data", handleMessage);
     conn.on("close", () => {
-        document.getElementById("status").textContent = "Opponent disconnected.";
+        clearTimer();
+        submitChoiceBtn.disabled = true;
+        submitGuessBtn.disabled = true;
+        status.textContent = "Opponent disconnected.";
     });
 
     document.getElementById("lobby").style.display = "none";
@@ -537,6 +541,21 @@ function handleMessage(msg) {
         opp.readyForNext = true;
         checkBothReadyNext();
     }
+    else if (msg.type === "leave") {
+        clearTimer();
+        submitChoiceBtn.disabled = true;
+        submitGuessBtn.disabled = true;
+        status.textContent = "Opponent left the game.";
+        instruction.innerHTML = `<strong>Opponent left</strong><br>They disconnected from the room.`;
+        document.getElementById("nextRoundBtn").disabled = true;
+    }
+}
+
+function leaveGame() {
+    send({ type: "leave" });
+    if (conn) conn.close();
+    if (peer) peer.destroy();
+    location.reload();
 }
 
 /* On page load, auto-fill join box if ?room= present */
