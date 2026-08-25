@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guess My Number - Online 1v1</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    background: radial-gradient(circle at top, #20204a 0%, #111124 45%, #080812 100%);
+    color: white;
+    font-family: Arial, Helvetica, sans-serif;
+    min-height: 100vh;
+}
+
+.game-container { width: 100%; max-width: 1100px; margin: auto; padding: 15px; }
+
+.header { text-align: center; margin-bottom: 15px; }
+.header h1 {
+    font-size: clamp(28px, 6vw, 52px);
+    letter-spacing: 3px;
+    color: #00eaff;
+    text-shadow: 0 0 10px #00eaff, 0 0 30px rgba(0, 234, 255, 0.5);
+}
+.header p { margin-top: 5px; color: #aaa; }
+
+/* ===== LOBBY ===== */
+.lobby {
+    max-width: 480px;
+    margin: 40px auto;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 30px 25px;
+    text-align: center;
+}
+.lobby h2 { color: #00eaff; margin-bottom: 8px; }
+.lobby p { color: #999; margin-bottom: 20px; font-size: 14px; }
+.lobby-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    margin-bottom: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #00eaff;
+    color: #001014;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.lobby-btn:hover { transform: translateY(-2px); box-shadow: 0 0 20px rgba(0,234,255,0.5); }
+.lobby-btn.secondary { background: transparent; border: 1px solid #00eaff; color: #00eaff; }
+.lobby-divider { color: #555; margin: 18px 0; font-size: 12px; letter-spacing: 2px; }
+
+.room-box {
+    display: none;
+    margin-top: 15px;
+}
+.room-box.show { display: block; }
+.room-link-wrap {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0;
+}
+.room-link-wrap input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: #0d0d1a;
+    color: #00ff9d;
+    font-size: 12px;
+}
+.room-link-wrap button {
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    background: #00ff9d;
+    color: #001b10;
+    font-weight: bold;
+    cursor: pointer;
+}
+.lobby-status { color: #ffd93d; font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+.how-to-play {
+    display: none;
+    text-align: left;
+    margin-top: 14px;
+    padding: 14px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.how-to-play.show { display: block; }
+.how-to-play p { color: #ccc; font-size: 13px; line-height: 1.6; margin-bottom: 8px; }
+.how-to-play p:last-child { margin-bottom: 0; }
+.how-to-play strong { color: #00eaff; }
+
+.join-input-wrap { display: none; gap: 8px; margin-top: 10px; }
+.join-input-wrap.show { display: flex; }
+.join-input-wrap input {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: #0d0d1a;
+    color: white;
+    font-size: 13px;
+}
+
+/* ===== GAME (hidden until connected) ===== */
+.game-area { display: none; }
+.game-area.show { display: block; }
+
+.top-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+
+.player-indicator {
+    flex: 1;
+    min-width: 200px;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    text-align: center;
+}
+.player-indicator span { font-weight: bold; color: #00ff9d; }
+
+.timer {
+    min-width: 150px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    background: #15152d;
+    border: 2px solid #00eaff;
+    color: #00eaff;
+    box-shadow: 0 0 15px rgba(0,234,255,0.25);
+}
+.timer.warning { color: #ffcc00; border-color: #ffcc00; }
+.timer.danger {
+    color: #ff3b5c; border-color: #ff3b5c;
+    animation: dangerPulse 0.5s infinite alternate;
+}
+@keyframes dangerPulse {
+    from { box-shadow: 0 0 5px rgba(255,59,92,0.3); }
+    to { box-shadow: 0 0 25px rgba(255,59,92,0.8); }
+}
+
+.instruction {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 15px;
+    text-align: center;
+    line-height: 1.5;
+}
+.instruction strong { color: #00eaff; }
+
+.boards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.board-section {
+    background: rgba(255,255,255,0.04);
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.board-title { text-align: center; margin-bottom: 12px; }
+.board-title h2 { font-size: 20px; }
+.board-title p { color: #888; font-size: 13px; margin-top: 4px; }
+
+.board {
+    width: 100%;
+    aspect-ratio: 1;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 3px;
+}
+
+.cell {
+    border: none;
+    border-radius: 4px;
+    background: #eee;
+    color: #111;
+    font-size: clamp(9px, 2vw, 16px);
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.15s ease;
+    min-width: 0;
+}
+.cell:hover:not(.disabled):not(.black):not(.opponent-blue) {
+    transform: scale(1.08);
+    background: #00eaff;
+    box-shadow: 0 0 10px #00eaff;
+}
+.cell.available { background: #ffd93d; color: #111; }
+.cell.unavailable { background: #f0f0f0; color: #aaa; cursor: not-allowed; }
+.cell.selected {
+    background: #00eaff; color: #001014;
+    box-shadow: 0 0 15px #00eaff; transform: scale(1.05);
+}
+.cell.disabled { background: #242424; color: #555; cursor: not-allowed; }
+.cell.black { background: #050505; color: #252525; cursor: not-allowed; }
+.cell.guess-available { background: #f4f4f4; color: #111; }
+.cell.guess-selected {
+    background: #00ff9d; color: #001b10;
+    box-shadow: 0 0 15px #00ff9d;
+}
+.cell.opponent-blue { background: #54c8ff; color: #00131d; cursor: pointer; }
+.cell.opponent-blue.round-2 { background: #269ed1; }
+.cell.opponent-blue.round-3 { background: #1775a0; color: white; }
+.cell.opponent-blue.round-4 { background: #0c4f70; color: white; }
+.cell.opponent-blue.round-5 { background: #082f44; color: white; }
+
+.controls { display: flex; justify-content: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+button.action-btn {
+    padding: 13px 28px; border: none; border-radius: 8px;
+    background: #00eaff; color: #001014; font-weight: bold;
+    font-size: 15px; cursor: pointer; transition: 0.2s;
+}
+button.action-btn:hover { transform: translateY(-2px); box-shadow: 0 0 20px rgba(0,234,255,0.6); }
+button.action-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+button.restart-btn { background: #ff3b5c; color: white; }
+
+.status { text-align: center; min-height: 28px; margin-top: 15px; color: #ddd; font-size: 15px; }
+
+.legend {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #999;
+}
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+}
+.dot-yellow { background: #ffd93d; }
+.dot-white { background: #f0f0f0; }
+.dot-black { background: #050505; border: 1px solid #333; }
+.dot-blue { background: #00eaff; }
+
+.reveal-panel {
+    display: none; margin-top: 20px; padding: 20px; border-radius: 15px;
+    background: rgba(0,0,0,0.35); border: 1px solid rgba(0,234,255,0.3); text-align: center;
+}
+.reveal-panel.show { display: block; }
+.reveal-panel h2 { color: #00eaff; margin-bottom: 15px; }
+.reveal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.reveal-card { padding: 15px; background: rgba(255,255,255,0.05); border-radius: 10px; }
+.reveal-card h3 { margin-bottom: 8px; }
+.reveal-number { font-size: 30px; font-weight: bold; color: #ffd93d; }
+
+.win-screen {
+    position: fixed; inset: 0; background: rgba(5,5,15,0.96);
+    display: none; align-items: center; justify-content: center; z-index: 999; padding: 20px;
+}
+.win-screen.show { display: flex; }
+.win-box {
+    width: min(500px, 100%); padding: 40px 25px; text-align: center;
+    border-radius: 20px; background: #111124; border: 2px solid #00eaff;
+    box-shadow: 0 0 50px rgba(0,234,255,0.3);
+}
+.win-box h1 { font-size: clamp(40px, 10vw, 70px); color: #00ff9d; margin-bottom: 15px; }
+.win-box h2 { color: #00eaff; margin-bottom: 10px; }
+.win-box p { color: #bbb; margin-bottom: 25px; }
+
+@media (max-width: 750px) {
+    .boards { grid-template-columns: 1fr; }
+    .board-section { padding: 10px; }
+    .top-bar { flex-direction: column; }
+    .player-indicator, .timer { width: 100%; }
+    .reveal-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="game-container">
+
+    <div class="header">
+        <h1>GUESS MY NUMBER</h1>
+        <p>Online 1v1 &mdash; Number Battle</p>
+    </div>
+
+    <!-- ===== LOBBY ===== -->
+    <div class="lobby" id="lobby">
+        <h2 id="lobbyTitle">Play with a friend</h2>
+        <p id="lobbySub">Create a room and send the link, or join with a link you received.</p>
+
+        <button class="lobby-btn" id="createRoomBtn" onclick="createRoom()">CREATE ROOM</button>
+
+        <div class="room-box" id="roomBox">
+            <p style="color:#aaa; font-size:13px;">Send this link to your friend:</p>
+            <div class="room-link-wrap">
+                <input type="text" id="roomLinkInput" readonly>
+                <button onclick="copyRoomLink()">COPY</button>
+            </div>
+            <div class="lobby-status" id="hostStatus">Waiting for your friend to join...</div>
+        </div>
+
+        <div class="lobby-divider">— OR —</div>
+
+        <button class="lobby-btn secondary" id="joinRoomBtn" onclick="showJoinInput()">JOIN ROOM</button>
+
+        <div class="join-input-wrap" id="joinInputWrap">
+            <input type="text" id="joinCodeInput" placeholder="Paste room link or code">
+            <button class="lobby-btn" style="width:auto; margin:0;" onclick="joinRoom()">GO</button>
+        </div>
+
+        <div class="lobby-status" id="lobbyStatus"></div>
+
+        <button class="lobby-btn secondary" style="margin-top:20px;" onclick="toggleHowToPlay()">HOW TO PLAY</button>
+        <div class="how-to-play" id="howToPlay">
+            <p>Each round, you and your friend both pick a secret number (00-99) and try to guess each other's number.</p>
+            <p><strong>Round 1:</strong> pick any number.</p>
+            <p><strong>Later rounds:</strong> your next number must share the same row or same column as your last number.</p>
+            <p>Guess your opponent's number using their past picks (shown in blue) as clues.</p>
+            <p>First to guess correctly wins.</p>
+        </div>
+    </div>
+
+    <!-- ===== GAME AREA ===== -->
+    <div class="game-area" id="gameArea">
+
+        <div class="top-bar">
+            <div class="player-indicator">
+                You are: <span id="myRoleText">PLAYER 1</span>
+            </div>
+            <div class="timer" id="timer">10</div>
+        </div>
+
+        <div class="instruction" id="instruction">
+            <strong>Choosing Phase</strong><br>
+            Select your secret number.
+        </div>
+
+        <div class="boards">
+            <div class="board-section">
+                <div class="board-title">
+                    <h2>YOUR BOARD</h2>
+                    <p id="choosingDescription">Choose your secret number</p>
+                </div>
+                <div class="board" id="choosingBoard"></div>
+            </div>
+
+            <div class="board-section">
+                <div class="board-title">
+                    <h2>GUESSING BOARD</h2>
+                    <p>Guess your opponent's number</p>
+                </div>
+                <div class="board" id="guessingBoard"></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="action-btn" id="submitChoiceBtn" onclick="submitChoice()">CONFIRM NUMBER</button>
+            <button class="action-btn" id="submitGuessBtn" onclick="submitGuess()" style="display:none;">CONFIRM GUESS</button>
+        </div>
+
+        <div class="status" id="status">Select a number.</div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="legend-dot dot-yellow"></span>Choosable now</div>
+            <div class="legend-item"><span class="legend-dot dot-white"></span>Not choosable this round</div>
+            <div class="legend-item"><span class="legend-dot dot-black"></span>Already used / blocked</div>
+            <div class="legend-item"><span class="legend-dot dot-blue"></span>Your selection</div>
+        </div>
+
+        <div class="reveal-panel" id="revealPanel">
+            <h2>ROUND RESULT</h2>
+            <div class="reveal-grid">
+                <div class="reveal-card">
+                    <h3>YOUR NUMBER</h3>
+                    <div class="reveal-number" id="revealMe">--</div>
+                    <p>Their guess: <span id="revealGuessOpp">--</span></p>
+                </div>
+                <div class="reveal-card">
+                    <h3>OPPONENT'S NUMBER</h3>
+                    <div class="reveal-number" id="revealOpp">--</div>
+                    <p>Your guess: <span id="revealGuessMe">--</span></p>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="action-btn" id="nextRoundBtn" onclick="nextRound()">READY FOR NEXT ROUND</button>
+            </div>
+            <div class="status" id="revealStatus"></div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- WIN SCREEN -->
+<div class="win-screen" id="winScreen">
+    <div class="win-box">
+        <h1 id="winTitle">YOU WON!</h1>
+        <h2 id="winnerText"></h2>
+        <p id="winnerReason"></p>
+        <button class="action-btn restart-btn" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+</div>
+
+<script>
+
+/* =========================================================
+   NETWORKING
+========================================================= */
+
+let peer = null;
+let conn = null;
+let myRole = null;     // 1 (host) or 2 (guest)
+let oppRole = null;
+
+function createRoom() {
+    document.getElementById("createRoomBtn").disabled = true;
+    peer = new Peer();
+
+    peer.on("open", (id) => {
+        const link = location.origin + location.pathname + "?room=" + id;
+        document.getElementById("roomLinkInput").value = link;
+        document.getElementById("roomBox").classList.add("show");
+        document.getElementById("hostStatus").textContent = "Waiting for your friend to join...";
+    });
+
+    peer.on("connection", (c) => {
+        conn = c;
+        myRole = 1;
+        oppRole = 2;
+        setupConnection();
+    });
+
+    peer.on("error", (err) => {
+        document.getElementById("hostStatus").textContent =
+            "Connection error: " + err.type + ". Try downloading the file and opening it directly in your browser.";
+    });
+}
+
+function showJoinInput() {
+    document.getElementById("joinInputWrap").classList.add("show");
+}
+
+function toggleHowToPlay() {
+    document.getElementById("howToPlay").classList.toggle("show");
+}
+
+function extractRoomCode(text) {
+    text = text.trim();
+    if (text.includes("room=")) {
+        return text.split("room=")[1].split("&")[0];
+    }
+    return text;
+}
+
+function joinRoom(codeOverride) {
+    const raw = codeOverride || document.getElementById("joinCodeInput").value;
+    const code = extractRoomCode(raw);
+
+    if (!code) {
+        document.getElementById("lobbyStatus").textContent = "Enter a room link or code.";
+        return;
+    }
+
+    document.getElementById("lobbyStatus").textContent = "Connecting...";
+
+    peer = new Peer();
+
+    peer.on("open", () => {
+        conn = peer.connect(code, { reliable: true });
+        myRole = 2;
+        oppRole = 1;
+
+        conn.on("open", () => {
+            setupConnection();
+        });
+    });
+
+    peer.on("error", (err) => {
+        document.getElementById("lobbyStatus").textContent =
+            "Couldn't connect: " + err.type + ". Try downloading the file and opening it directly in your browser.";
+    });
+}
+
+function copyRoomLink() {
+    const input = document.getElementById("roomLinkInput");
+    input.select();
+    navigator.clipboard.writeText(input.value);
+    document.getElementById("hostStatus").textContent = "Link copied!";
+}
+
+function setupConnection() {
+    conn.on("data", handleMessage);
+    conn.on("close", () => {
+        document.getElementById("status").textContent = "Opponent disconnected.";
+    });
+
+    document.getElementById("lobby").style.display = "none";
+    document.getElementById("gameArea").classList.add("show");
+    document.getElementById("myRoleText").textContent = "PLAYER " + myRole;
+
+    startGame();
+}
+
+function send(msg) {
+    if (conn && conn.open) {
+        conn.send(msg);
+    }
+}
+
+function handleMessage(msg) {
+    if (msg.type === "choice") {
+        opp.choicePending = msg.number;
+        opp.choiceReceived = true;
+        checkChoicesComplete();
+    }
+    else if (msg.type === "guess") {
+        opp.guess = msg.number;
+        opp.guessReceived = true;
+        checkGuessesComplete();
+    }
+    else if (msg.type === "next") {
+        opp.readyForNext = true;
+        checkBothReadyNext();
+    }
+}
+
+/* On page load, auto-fill join box if ?room= present */
+window.addEventListener("DOMContentLoaded", () => {
+    const params = new URLSearchParams(location.search);
+    const room = params.get("room");
+    if (room) {
+        document.getElementById("lobbyTitle").textContent = "Join your friend's room";
+        document.getElementById("lobbySub").textContent = "Tap below to connect.";
+        document.getElementById("createRoomBtn").style.display = "none";
+        document.getElementById("joinInputWrap").classList.add("show");
+        document.getElementById("joinCodeInput").value = room;
+        document.getElementById("joinRoomBtn").style.display = "none";
+        joinRoom(room);
+    }
+});
+
+/* =========================================================
+   GAME STATE
+========================================================= */
+
+let round = 1;
+let phase = "choosing"; // choosing -> waiting-choice -> guessing -> waiting-guess -> reveal
+let selectedChoice = null;
+let selectedGuess = null;
+let timerValue = 10;
+let timerInterval = null;
+let gameOver = false;
+
+// me: my own picks + constraints. opp: what I know about opponent (past revealed numbers only)
+let me = {
+    chosenNumbers: [],
+    blockedNumbers: [],
+    previousChoice: null,
+    currentChoice: null,
+    currentGuess: null
+};
+
+let opp = {
+    chosenNumbers: [],       // only numbers revealed at end of PAST rounds (fixes the leak bug)
+    currentChoice: null,     // filled in only once round resolves
+    choicePending: null,     // received but not yet revealed
+    choiceReceived: false,
+    guess: null,
+    guessReceived: false,
+    readyForNext: false
+};
+
+let myReadyForNext = false;
+
+const choosingBoard = document.getElementById("choosingBoard");
+const guessingBoard = document.getElementById("guessingBoard");
+const timer = document.getElementById("timer");
+const instruction = document.getElementById("instruction");
+const status = document.getElementById("status");
+const submitChoiceBtn = document.getElementById("submitChoiceBtn");
+const submitGuessBtn = document.getElementById("submitGuessBtn");
+const revealPanel = document.getElementById("revealPanel");
+
+function startGame() {
+    createChoosingBoard();
+    createGuessingBoard();
+    updateUI();
+    startChoosingTimer();
+}
+
+/* =========================================================
+   BOARD CREATION
+========================================================= */
+
+function createChoosingBoard() {
+    choosingBoard.innerHTML = "";
+    for (let i = 0; i < 100; i++) {
+        const cell = document.createElement("button");
+        cell.classList.add("cell");
+        cell.textContent = String(i).padStart(2, "0");
+        cell.onclick = () => { if (phase === "choosing") selectChoice(i); };
+        choosingBoard.appendChild(cell);
+    }
+    updateChoosingBoard();
+}
+
+function createGuessingBoard() {
+    guessingBoard.innerHTML = "";
+    for (let i = 0; i < 100; i++) {
+        const cell = document.createElement("button");
+        cell.classList.add("cell");
+        cell.textContent = String(i).padStart(2, "0");
+        cell.onclick = () => { if (phase === "guessing") selectGuess(i); };
+        guessingBoard.appendChild(cell);
+    }
+    updateGuessingBoard();
+}
+
+function getRow(n) { return Math.floor(n / 10); }
+function getColumn(n) { return n % 10; }
+function formatNumber(n) { return (n === null || n === undefined) ? "--" : String(n).padStart(2, "0"); }
+
+/* =========================================================
+   CHOOSING BOARD (my own constraints)
+========================================================= */
+
+function updateChoosingBoard() {
+    const cells = choosingBoard.children;
+
+    for (let i = 0; i < 100; i++) {
+        const cell = cells[i];
+        cell.className = "cell";
+        cell.disabled = false;
+
+        if (me.chosenNumbers.includes(i) || me.blockedNumbers.includes(i)) {
+            cell.classList.add("black");
+            cell.disabled = true;
+            continue;
+        }
+
+        if (round === 1) {
+            cell.classList.add("available");
+            continue;
+        }
+
+        const prevRow = getRow(me.previousChoice);
+        const prevCol = getColumn(me.previousChoice);
+        const cellRow = getRow(i);
+        const cellCol = getColumn(i);
+
+        const ok = (cellRow === prevRow || cellCol === prevCol);
+
+        if (ok) cell.classList.add("available");
+        else { cell.classList.add("unavailable"); cell.disabled = true; }
+    }
+}
+
+function isValidChoice(number) {
+    if (me.chosenNumbers.includes(number) || me.blockedNumbers.includes(number)) return false;
+    if (round === 1) return true;
+
+    const prevRow = getRow(me.previousChoice);
+    const prevCol = getColumn(me.previousChoice);
+    const curRow = getRow(number);
+    const curCol = getColumn(number);
+
+    return (curRow === prevRow || curCol === prevCol);
+}
+
+function getAvailableChoices() {
+    const result = [];
+    for (let i = 0; i < 100; i++) if (isValidChoice(i)) result.push(i);
+    return result;
+}
+
+function selectChoice(number) {
+    if (me.chosenNumbers.includes(number) || me.blockedNumbers.includes(number)) return;
+    if (!isValidChoice(number)) { status.textContent = "That number cannot be selected."; return; }
+
+    selectedChoice = number;
+    highlightSelectionPreview(number);
+    status.textContent = `Selected ${formatNumber(number)}.`;
+}
+
+function highlightSelectionPreview(number) {
+    const cells = choosingBoard.children;
+    const row = getRow(number);
+    const col = getColumn(number);
+
+    for (let i = 0; i < 100; i++) {
+        if (me.chosenNumbers.includes(i) || me.blockedNumbers.includes(i)) continue; // already black, stays black
+
+        const cell = cells[i];
+        cell.classList.remove("available", "unavailable", "selected");
+
+        if (i === number) {
+            cell.classList.add("selected");
+        } else if (getRow(i) === row || getColumn(i) === col) {
+            cell.classList.add("available");
+        } else {
+            cell.classList.add("unavailable");
+        }
+    }
+}
+
+function submitChoice() {
+    if (phase !== "choosing") return;
+
+    if (selectedChoice === null) {
+        const available = getAvailableChoices();
+        if (available.length === 0) { endGame(); return; }
+        selectedChoice = available[Math.floor(Math.random() * available.length)];
+        status.textContent = `No number selected. Randomly picked ${formatNumber(selectedChoice)}.`;
+    }
+
+    if (me.previousChoice !== null) {
+        const prevRow = getRow(me.previousChoice);
+        const prevCol = getColumn(me.previousChoice);
+        const curRow = getRow(selectedChoice);
+        const curCol = getColumn(selectedChoice);
+
+        if (curRow === prevRow) {
+            // stayed on the row line -> abandon the column line
+            for (let n = 0; n < 100; n++) {
+                if (getColumn(n) === prevCol && !me.chosenNumbers.includes(n) && !me.blockedNumbers.includes(n)) {
+                    me.blockedNumbers.push(n);
+                }
+            }
+        } else if (curCol === prevCol) {
+            // stayed on the column line -> abandon the row line
+            for (let n = 0; n < 100; n++) {
+                if (getRow(n) === prevRow && !me.chosenNumbers.includes(n) && !me.blockedNumbers.includes(n)) {
+                    me.blockedNumbers.push(n);
+                }
+            }
+        }
+    }
+
+    me.currentChoice = selectedChoice;
+    me.chosenNumbers.push(selectedChoice);
+
+    clearTimer();
+    send({ type: "choice", number: selectedChoice });
+
+    phase = "waiting-choice";
+    updateUI();
+    checkChoicesComplete();
+}
+
+function checkChoicesComplete() {
+    if (phase === "waiting-choice" && opp.choiceReceived) {
+        opp.currentChoice = opp.choicePending; // known internally, NOT shown on guessing board yet
+        phase = "guessing";
+        selectedGuess = null;
+        updateUI();
+        startGuessingTimer();
+    }
+}
+
+/* =========================================================
+   GUESSING BOARD (only past-round hints — leak fixed)
+========================================================= */
+
+function updateGuessingBoard() {
+    const cells = guessingBoard.children;
+
+    for (let i = 0; i < 100; i++) {
+        const cell = cells[i];
+        cell.className = "cell";
+        cell.disabled = false;
+
+        const historyIndex = opp.chosenNumbers.indexOf(i);
+        if (historyIndex !== -1) {
+            cell.classList.add("opponent-blue");
+            const roundNumber = historyIndex + 1;
+            if (roundNumber >= 2) cell.classList.add(`round-${Math.min(roundNumber, 5)}`);
+        } else {
+            cell.classList.add("guess-available");
+        }
+    }
+}
+
+function selectGuess(number) {
+    selectedGuess = number;
+    const cells = guessingBoard.children;
+    for (let i = 0; i < 100; i++) cells[i].classList.remove("guess-selected");
+    cells[number].classList.add("guess-selected");
+    status.textContent = `Guess selected: ${formatNumber(number)}`;
+}
+
+function submitGuess() {
+    if (phase !== "guessing") return;
+
+    me.currentGuess = selectedGuess; // may be null on timeout
+    clearTimer();
+    send({ type: "guess", number: selectedGuess });
+
+    phase = "waiting-guess";
+    updateUI();
+    checkGuessesComplete();
+}
+
+function checkGuessesComplete() {
+    if (phase === "waiting-guess" && opp.guessReceived) {
+        resolveRound();
+    }
+}
+
+/* =========================================================
+   ROUND RESOLUTION
+========================================================= */
+
+function resolveRound() {
+    clearTimer();
+
+    me.previousChoice = me.currentChoice;
+    // reveal opponent's number now that the round is over (used for next round's hints)
+    opp.chosenNumbers.push(opp.currentChoice);
+
+    const iGuessedCorrectly = me.currentGuess !== null && me.currentGuess === opp.currentChoice;
+    const oppGuessedCorrectly = opp.guess !== null && opp.guess === me.currentChoice;
+
+    if (iGuessedCorrectly && oppGuessedCorrectly) {
+        showWinner("tie");
+        return;
+    }
+    if (iGuessedCorrectly) { showWinner("me"); return; }
+    if (oppGuessedCorrectly) { showWinner("opp"); return; }
+
+    showRoundReveal();
+}
+
+function showRoundReveal() {
+    phase = "reveal";
+
+    document.getElementById("revealMe").textContent = formatNumber(me.currentChoice);
+    document.getElementById("revealOpp").textContent = formatNumber(opp.currentChoice);
+    document.getElementById("revealGuessOpp").textContent = opp.guess === null ? "No guess" : formatNumber(opp.guess);
+    document.getElementById("revealGuessMe").textContent = me.currentGuess === null ? "No guess" : formatNumber(me.currentGuess);
+    document.getElementById("revealStatus").textContent = "";
+
+    revealPanel.classList.add("show");
+    status.textContent = "Nobody guessed correctly. Numbers revealed.";
+}
+
+/* =========================================================
+   NEXT ROUND
+========================================================= */
+
+function nextRound() {
+    myReadyForNext = true;
+    document.getElementById("revealStatus").textContent = "Waiting for opponent...";
+    document.getElementById("nextRoundBtn").disabled = true;
+    send({ type: "next" });
+    checkBothReadyNext();
+}
+
+function checkBothReadyNext() {
+    if (myReadyForNext && opp.readyForNext) {
+        myReadyForNext = false;
+        opp.readyForNext = false;
+        document.getElementById("nextRoundBtn").disabled = false;
+
+        revealPanel.classList.remove("show");
+        round++;
+
+        me.currentChoice = null;
+        me.currentGuess = null;
+        opp.currentChoice = null;
+        opp.choicePending = null;
+        opp.choiceReceived = false;
+        opp.guess = null;
+        opp.guessReceived = false;
+
+        selectedChoice = null;
+        selectedGuess = null;
+        phase = "choosing";
+
+        updateUI();
+        startChoosingTimer();
+    }
+}
+
+/* =========================================================
+   TIMERS
+========================================================= */
+
+function startChoosingTimer() {
+    clearTimer();
+    timerValue = 30;
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
+        timerValue--;
+        updateTimerDisplay();
+        if (timerValue <= 0) { clearTimer(); autoChoose(); }
+    }, 1000);
+}
+
+function startGuessingTimer() {
+    clearTimer();
+    timerValue = 30;
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
+        timerValue--;
+        updateTimerDisplay();
+        if (timerValue <= 0) { clearTimer(); selectedGuess = null; submitGuess(); }
+    }, 1000);
+}
+
+function autoChoose() {
+    if (phase !== "choosing") return;
+    const available = getAvailableChoices();
+    if (available.length === 0) { endGame(); return; }
+    selectedChoice = available[Math.floor(Math.random() * available.length)];
+    status.textContent = `Time expired! ${formatNumber(selectedChoice)} was randomly selected.`;
+    submitChoice();
+}
+
+function clearTimer() {
+    if (timerInterval !== null) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function updateTimerDisplay() {
+    timer.textContent = timerValue;
+    timer.classList.remove("warning", "danger");
+    if (timerValue <= 5) timer.classList.add("danger");
+    else if (timerValue <= 10) timer.classList.add("warning");
+}
+
+/* =========================================================
+   UI
+========================================================= */
+
+function updateUI() {
+    if (phase === "choosing") {
+        const hint = round === 1
+            ? "Pick any number on your board."
+            : "Pick a yellow number — it must share a row or column with your last pick.";
+        instruction.innerHTML = `<strong>Your turn: pick a number</strong><br>${hint}`;
+        submitChoiceBtn.style.display = "inline-block";
+        submitChoiceBtn.disabled = false;
+        submitGuessBtn.style.display = "none";
+        document.getElementById("choosingDescription").textContent = "Choose your secret number";
+    }
+    else if (phase === "waiting-choice") {
+        instruction.innerHTML = `<strong>Waiting</strong><br>Your opponent is still picking their number.`;
+        submitChoiceBtn.style.display = "none";
+        submitGuessBtn.style.display = "none";
+    }
+    else if (phase === "guessing") {
+        instruction.innerHTML = `<strong>Now guess their number</strong><br>Blue tiles on the right are their past numbers — use them as clues.`;
+        submitChoiceBtn.style.display = "none";
+        submitGuessBtn.style.display = "inline-block";
+        submitGuessBtn.disabled = false;
+    }
+    else if (phase === "waiting-guess") {
+        instruction.innerHTML = `<strong>Waiting</strong><br>Your opponent is still guessing.`;
+        submitChoiceBtn.style.display = "none";
+        submitGuessBtn.style.display = "none";
+    }
+
+    updateChoosingBoard();
+    updateGuessingBoard();
+}
+
+/* =========================================================
+   WINNER
+========================================================= */
+
+function showWinner(result) {
+    gameOver = true;
+    phase = "gameover";
+    clearTimer();
+
+    const winTitle = document.getElementById("winTitle");
+    const winnerText = document.getElementById("winnerText");
+    const winnerReason = document.getElementById("winnerReason");
+
+    if (result === "tie") {
+        winTitle.textContent = "TIE!";
+        winnerText.textContent = "Both players guessed correctly";
+        winnerReason.textContent = `Your number was ${formatNumber(me.currentChoice)}, guessed as ${formatNumber(opp.guess)}. Their number was ${formatNumber(opp.currentChoice)}, guessed as ${formatNumber(me.currentGuess)}.`;
+    } else if (result === "me") {
+        winTitle.textContent = "YOU WON!";
+        winnerText.textContent = "You guessed correctly!";
+        winnerReason.textContent = `Their number was ${formatNumber(opp.currentChoice)}.`;
+    } else {
+        winTitle.textContent = "YOU LOST";
+        winnerText.textContent = "Opponent guessed correctly.";
+        winnerReason.textContent = `Your number was ${formatNumber(me.currentChoice)}.`;
+    }
+
+    document.getElementById("winScreen").classList.add("show");
+}
+
+function endGame() {
+    clearTimer();
+    gameOver = true;
+    status.textContent = "No legal numbers remain. Game over.";
+    submitChoiceBtn.disabled = true;
+    submitGuessBtn.disabled = true;
+}
+
+document.addEventListener("click", (event) => {
+    if (event.target.classList.contains("cell")) event.preventDefault();
+});
+
+</script>
+</body>
+</html>
